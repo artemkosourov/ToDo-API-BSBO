@@ -1,27 +1,31 @@
-# Главный файл приложения
-from fastapi import FastAPI 
-from routers import tasks
+from fastapi import FastAPI
+from routers import tasks, stats
 
 app = FastAPI(
-    title="ToDo лист API",
-    description="API для управления задачами с использованием матрицы Эйзенхауэра",
+    title="Task Management API",
+    description="API для управления задачами. Косоуров Артем",
     version="1.0.0",
-    contact={
-        "name": "Артем Косоуров",
-    }
+    docs_url="/docs",
+    redoc_url="/redoc"
 )
-app.include_router(tasks.router)
+
+# Подключаем роутеры с префиксом /api/v1
+app.include_router(tasks.router, prefix="/api/v1")
+app.include_router(stats.router, prefix="/api/v1")
 
 @app.get("/")
-async def welcome() -> dict:
+async def root():
     return {
-        "message": "Привет студент",
-        "api_title": app.title,
-        "api_description": app.description,
-        "api_version": app.version,
-        "api_author": app.contact["name"]
+        "message": "Добро пожаловать в Task Management API",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "api_base": "/api/v1"
     }
 
-@app.post("/tasks")
-async def create_task(task: dict):
-    return {"message":"Запись успешно создана","task":task}
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "message": "API работает корректно"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
