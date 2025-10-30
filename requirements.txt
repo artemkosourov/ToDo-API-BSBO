@@ -14,3 +14,8 @@ starlette == 0.48.0
 typing-inspection == 0.4.2
 typing-extensions == 4.15.0
 websockets == 15.0.1
+sqlalchemy[asyncio]==2.0.23
+asyncpg==0.29.0
+alembic==1.12.1
+python-dotenv==1.0.0
+psycopg2-binary==2.9.9
