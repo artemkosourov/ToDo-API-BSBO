@@ -1,5 +1,8 @@
-from fastapi import APIRouter
-from database import tasks_db
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from database import get_db
+from models import Task
 
 router = APIRouter(
     prefix="/stats",
@@ -8,22 +11,24 @@ router = APIRouter(
 )
 
 @router.get("/")
-async def get_tasks_stats() -> dict:
-    total_tasks = len(tasks_db)
+async def get_tasks_stats(db: Session = Depends(get_db)) -> dict:
+    # Общее количество задач
+    total_tasks = db.query(Task).count()
     
-    by_quadrant = {"Q1": 0, "Q2": 0, "Q3": 0, "Q4": 0}
-    for task in tasks_db:
-        quadrant = task["quadrant"]
-        if quadrant in by_quadrant:
-            by_quadrant[quadrant] += 1
+    # Задачи по квадрантам
+    quadrant_result = db.query(Task.quadrant, func.count(Task.id)).group_by(Task.quadrant).all()
+    by_quadrant = dict(quadrant_result)
     
-    completed = sum(1 for task in tasks_db if task["completed"])
+    # Завершенные и ожидающие задачи
+    completed = db.query(Task).filter(Task.completed == True).count()
     pending = total_tasks - completed
     
-    important_tasks = sum(1 for task in tasks_db if task["is_important"])
-    urgent_tasks = sum(1 for task in tasks_db if task["is_urgent"])
+    # Важные и срочные задачи
+    important_tasks = db.query(Task).filter(Task.is_important == True).count()
+    urgent_tasks = db.query(Task).filter(Task.is_urgent == True).count()
     
-    completed_with_date = sum(1 for task in tasks_db if task["completed_at"] is not None)
+    # Задачи с датой завершения
+    completed_with_date = db.query(Task).filter(Task.completed_at.isnot(None)).count()
     
     return {
         "total_tasks": total_tasks,
@@ -43,17 +48,15 @@ async def get_tasks_stats() -> dict:
     }
 
 @router.get("/quadrant-distribution")
-async def get_quadrant_distribution() -> dict:
-    quadrant_stats = {"Q1": 0, "Q2": 0, "Q3": 0, "Q4": 0}
+async def get_quadrant_distribution(db: Session = Depends(get_db)) -> dict:
+    quadrant_result = db.query(Task.quadrant, func.count(Task.id)).group_by(Task.quadrant).all()
+    quadrant_stats = dict(quadrant_result)
     
-    for task in tasks_db:
-        quadrant = task["quadrant"]
-        if quadrant in quadrant_stats:
-            quadrant_stats[quadrant] += 1
+    total = db.query(Task).count()
     
-    total = len(tasks_db)
     percentages = {}
-    for quadrant, count in quadrant_stats.items():
+    for quadrant in ["Q1", "Q2", "Q3", "Q4"]:
+        count = quadrant_stats.get(quadrant, 0)
         percentages[quadrant] = round((count / total) * 100, 2) if total > 0 else 0
     
     return {
@@ -63,12 +66,12 @@ async def get_quadrant_distribution() -> dict:
     }
 
 @router.get("/completion-timeline")
-async def get_completion_timeline() -> dict:
-    completed_tasks = [task for task in tasks_db if task["completed_at"] is not None]
+async def get_completion_timeline(db: Session = Depends(get_db)) -> dict:
+    completed_tasks = db.query(Task).filter(Task.completed_at.isnot(None)).all()
     
     timeline = {}
     for task in completed_tasks:
-        date_str = task["completed_at"].strftime("%Y-%m-%d")
+        date_str = task.completed_at.strftime("%Y-%m-%d")
         if date_str not in timeline:
             timeline[date_str] = 0
         timeline[date_str] += 1

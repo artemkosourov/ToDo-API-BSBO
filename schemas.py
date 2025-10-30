@@ -2,19 +2,16 @@ from pydantic import BaseModel, Field, validator
 from typing import Optional, Any, Dict
 from datetime import datetime
 
-
-# Базовая схема для Task
-# Все поля, которые есть в нашей "базе данных" tasks_db
 class TaskBase(BaseModel):
     title: str = Field(
-        ...,  # троеточие означает "обязательное поле"
+        ...,
         min_length=1,
         max_length=100,
         description="Название задачи"
     )
     
     description: Optional[str] = Field(
-        None,  # None = необязательное поле
+        None,
         max_length=500,
         description="Описание задачи"
     )
@@ -35,15 +32,9 @@ class TaskBase(BaseModel):
             raise ValueError('Название задачи не может быть пустым')
         return v.strip()
 
-
-# Схема для создания новой задачи
-# Наследует все поля от TaskBase
 class TaskCreate(TaskBase):
     pass
 
-
-# Схема для обновления задачи (используется в PUT)
-# Все поля опциональные, т.к. мы можем захотеть обновить только title или status
 class TaskUpdate(BaseModel):
     title: Optional[str] = Field(
         None,
@@ -79,10 +70,6 @@ class TaskUpdate(BaseModel):
             raise ValueError('Название задачи не может быть пустым')
         return v.strip() if v else v
 
-
-# Модель для ответа (TaskResponse)
-# При ответе сервер возвращает полную информацию о задаче,
-# включая сгенерированные поля: id, quadrant, created_at, etc.
 class TaskResponse(TaskBase):
     id: int = Field(
         ...,
@@ -105,7 +92,11 @@ class TaskResponse(TaskBase):
         ...,
         description="Дата и время создания задачи"
     )
+    
+    completed_at: Optional[datetime] = Field(
+        None,
+        description="Дата и время завершения задачи"
+    )
 
     class Config:
-        # Config класс для работы с ORM (понадобится после подключения СУБД)
         from_attributes = True
