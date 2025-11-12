@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, validator
 from typing import Optional, Any, Dict
-from datetime import datetime
+from datetime import datetime, date
 
 class TaskBase(BaseModel):
     title: str = Field(
@@ -26,11 +26,23 @@ class TaskBase(BaseModel):
         description="Срочность задачи"
     )
     
+    # НОВОЕ ПОЛЕ: Дедлайн задачи
+    deadline: Optional[date] = Field(
+        None,
+        description="Дедлайн задачи (YYYY-MM-DD)"
+    )
+    
     @validator('title')
     def title_cannot_be_empty(cls, v):
         if not v or not v.strip():
             raise ValueError('Название задачи не может быть пустым')
         return v.strip()
+    
+    @validator('deadline')
+    def deadline_cannot_be_in_past(cls, v):
+        if v and v < date.today():
+            raise ValueError('Дедлайн не может быть в прошлом')
+        return v
 
 class TaskCreate(TaskBase):
     pass
@@ -64,11 +76,23 @@ class TaskUpdate(BaseModel):
         description="Статус выполнения"
     )
     
+    # НОВОЕ ПОЛЕ: Дедлайн задачи
+    deadline: Optional[date] = Field(
+        None,
+        description="Дедлайн задачи (YYYY-MM-DD)"
+    )
+    
     @validator('title')
     def title_cannot_be_empty(cls, v):
         if v is not None and (not v or not v.strip()):
             raise ValueError('Название задачи не может быть пустым')
         return v.strip() if v else v
+    
+    @validator('deadline')
+    def deadline_cannot_be_in_past(cls, v):
+        if v and v < date.today():
+            raise ValueError('Дедлайн не может быть в прошлом')
+        return v
 
 class TaskResponse(TaskBase):
     id: int = Field(
@@ -96,6 +120,17 @@ class TaskResponse(TaskBase):
     completed_at: Optional[datetime] = Field(
         None,
         description="Дата и время завершения задачи"
+    )
+    
+    # Новые вычисляемые поля для ответа
+    days_until_deadline: Optional[int] = Field(
+        None,
+        description="Количество дней до дедлайна"
+    )
+    
+    is_overdue: bool = Field(
+        default=False,
+        description="Просрочена ли задача"
     )
 
     class Config:

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query, status, Depends
 from typing import List, Dict, Any
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import select, update, delete
 
@@ -108,7 +108,8 @@ async def create_task(
         is_important=task.is_important,
         is_urgent=task.is_urgent,
         quadrant=quadrant,
-        completed=False
+        completed=False,
+        deadline=task.deadline  # Добавляем дедлайн
     )
     
     db.add(new_task)
@@ -185,3 +186,70 @@ async def delete_task(
     db.commit()
     
     return None
+
+# НОВЫЕ ЭНДПОИНТЫ ДЛЯ ДЕДЛАЙНОВ
+
+@router.get("/deadline/upcoming", response_model=dict)
+async def get_upcoming_deadlines(
+    days: int = Query(7, ge=1, le=30, description="Количество дней для поиска предстоящих дедлайнов"),
+    db: Session = Depends(get_db)
+) -> dict:
+    """Получить задачи с приближающимися дедлайнами"""
+    today = date.today()
+    target_date = today + timedelta(days=days)
+    
+    upcoming_tasks = db.query(Task).filter(
+        Task.deadline.isnot(None),
+        Task.deadline >= today,
+        Task.deadline <= target_date,
+        Task.completed == False
+    ).order_by(Task.deadline).all()
+    
+    return {
+        "days_range": days,
+        "count": len(upcoming_tasks),
+        "tasks": [task.to_dict() for task in upcoming_tasks]
+    }
+
+@router.get("/deadline/overdue", response_model=dict)
+async def get_overdue_tasks(
+    db: Session = Depends(get_db)
+) -> dict:
+    """Получить просроченные задачи"""
+    today = date.today()
+    
+    overdue_tasks = db.query(Task).filter(
+        Task.deadline.isnot(None),
+        Task.deadline < today,
+        Task.completed == False
+    ).order_by(Task.deadline).all()
+    
+    return {
+        "count": len(overdue_tasks),
+        "tasks": [task.to_dict() for task in overdue_tasks]
+    }
+
+@router.get("/deadline/{task_id}", response_model=dict)
+async def get_task_deadline_info(
+    task_id: int, 
+    db: Session = Depends(get_db)
+) -> dict:
+    """Получить информацию о дедлайне конкретной задачи"""
+    task = db.query(Task).filter(Task.id == task_id).first()
+    
+    if not task:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Задача с ID {task_id} не найдена"
+        )
+    
+    deadline_info = {
+        "task_id": task.id,
+        "title": task.title,
+        "deadline": task.deadline,
+        "days_until_deadline": task.calculate_days_until_deadline(),
+        "is_overdue": task.calculate_days_until_deadline() is not None and task.calculate_days_until_deadline() < 0,
+        "has_deadline": task.deadline is not None
+    }
+    
+    return deadline_info
